@@ -1,0 +1,89 @@
+#!/bin/bash
+##########
+#MSUB -l nodes=1:ppn=1
+#MSUB -l walltime=8:00:00
+#MSUB -N pvbuild
+
+####################
+# Example Usage:
+####################
+#
+# Submit a build on Lightshow for Intel 15.0.5 with OpenMPI 1.6.5.
+# Note: Since Lightshow uses Nahelem CPUs, we will disable SWR and set
+#       the OSPray architecture to SSE.
+#
+# msub -v BASEDIR=/usr/projects/packages/hpc_paraview/superbuild/build/lightshow,COMP=intel,COMP_VER=15.0.5,MPI=openmpi,MPI_VER=1.6.5,SWR=0,OSPRAY=SSE /path/to/superbuild/source/Scripts/sites/LANL-TOSS2-Build.moab
+#
+# The build will be located in /usr/projects/packages/hpc_paraview/superbuild/build/lightshow/5.1.2-osmesa_intel-15.0.5_openmpi-1.6.5/
+# Once finished, the result will be a file called 5.1.2-osmesa_intel-15.0.5_openmpi-1.6.5.tgz
+#
+####################
+#
+# Submit a build on Moonlight for Intel 16.0.3 with Intel MPI 5.1.3,
+# specifying an alternate location to look for the downloadad tar files
+# Note: Since Moonlight uses SandyBridge CPUs, we will leave SWR enabled
+#       by default and set the OSPray architecture to AVX.
+#
+# msub -v BASEDIR=/usr/projects/packages/hpc_paraview/superbuild/build/moonlight,COMP=intel,COMP_VER=16.0.3,MPI=impi,MPI_VER=5.1.3,OSPRAY=AVX,EXTRA_OPTS="-Dsuperbuild_download_location=/path/to/downloads" /path/to/superbuild/source/Scripts/sites/LANL-TOSS2-Build.moab
+#
+# This will generate a logfile called moonlight.5.1.2-osmesa_intel-16.0.3_impi-5.1.3.out
+# The build will be located in /usr/projects/packages/hpc_paraview/superbuild/build/moonlight/5.1.2-osmesa_intel-16.0.3_impi-5.1.3
+# Once finished, the result will be a file called 5.1.2-osmesa_intel-16.0.3_impi-5.1.3.tgz
+#
+####################
+
+usage()
+{
+  echo "This build script requires thr following variables to be set:"
+  echo "  BASEDIR    - The base directory to start the build in"
+  echo "  COMP       - Compiler to build with (gcc or intel)"
+  echo "  COMP_VER   - Compiler version to build with"
+  echo "  MPI        - MPI distribution to use (openmpi or impi)"
+  echo "  MPI_VER    - MPI version to build with"
+  echo ""
+  echo "It also optionally accepts the following variables:"
+  echo "  SWR        - Whether or not to enable the SWR OSMesa driver."
+  echo "               Values: 0, 1 (default)"
+  echo "  OSPRAY     - SIMD architecture to build OSPray with."
+  echo "               Values: ALL (default), SSE, AVX, AVX2"
+  echo "  EXTRA_OPTS - String containing additional CMake arguments to pass"
+  echo "               during the configure step."
+}
+
+check_var()
+{
+  local VARNAME="$1"
+  local DEFAULT="$2"
+  eval local VARVALUE=\$$VARNAME
+  if [ -z "$VARVALUE" ]
+  then
+    if [ $# -ge 2 ]
+    then
+      eval $VARNAME="${DEFAULT}"
+    else
+      echo "Error: ${VARNAME} is empty or not defined"
+      usage
+      exit 1
+    fi
+  fi
+}
+
+check_var BASEDIR
+check_var COMP
+check_var COMP_VER
+check_var MPI
+check_var MPI_VER
+check_var SWR 1
+check_var OSPRAY ALL
+check_var EXTRA_OPTS ""
+
+SRCDIR=/usr/projects/packages/hpc_paraview/superbuild/source/ParaViewSuperbuild
+
+mkdir -p ${BASEDIR}
+cd ${BASEDIR}
+
+# This works around a cosmotools linker error.  Still not sure why paraview has the
+# associated linking problem but this seems to fix it
+export LD_FLAGS="${LDFLAGS} -Wl,--allow-shlib-undefined"
+
+${SRCDIR}/Scripts/sites/LANL-TOSS2-Build.sh ${COMP} ${COMP_VER} ${MPI} ${MPI_VER} ${SWR} ${OSPRAY} ${EXTRA_OPTS}
